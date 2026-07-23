@@ -1,0 +1,2 @@
+# Keep .gitignore itself tracked
+!/.gitignore

@@ -1,0 +1,135 @@
+name: Build & Scan Image
+
+# Triggered on a Pull Request (merge request) to the main branch
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+# Permissions: read source + write comments on the PR
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  IMAGE_REF: kcd2026-shop-app:pr-${{ github.event.pull_request.number }}
+
+jobs:
+  build-and-scan:
+    name: Build image, scan with Trivy, comment on PR
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # 1. Build image (context = ./app, load into local docker for Trivy to scan)
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./app
+          push: false
+          load: true
+          tags: ${{ env.IMAGE_REF }}
+
+      # 2. Scan the image with the Trivy action -> output JSON (do not fail here so we can still tally results)
+      - name: Trivy scan (JSON report)
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          image-ref: ${{ env.IMAGE_REF }}
+          format: json
+          output: trivy-report.json
+          severity: CRITICAL,HIGH,MEDIUM,LOW,UNKNOWN
+          exit-code: '0'
+          vuln-type: os,library
+
+      # 3. Tally scan results + determine pipeline status (fail if any CRITICAL)
+      - name: Summarize scan result
+        id: summary
+        run: |
+          set -euo pipefail
+          report=trivy-report.json
+
+          count() { jq --arg s "$1" '[.Results[]?.Vulnerabilities[]? | select(.Severity==$s)] | length' "$report"; }
+          CRITICAL=$(count CRITICAL)
+          HIGH=$(count HIGH)
+          MEDIUM=$(count MEDIUM)
+          LOW=$(count LOW)
+          UNKNOWN=$(count UNKNOWN)
+          TOTAL=$((CRITICAL + HIGH + MEDIUM + LOW + UNKNOWN))
+
+          echo "critical=$CRITICAL" >> "$GITHUB_OUTPUT"
+
+          if [ "$CRITICAL" -gt 0 ]; then
+            STATUS="❌ FAILED — found $CRITICAL CRITICAL vulnerabilities"
+          else
+            STATUS="✅ PASSED — no CRITICAL vulnerabilities"
+          fi
+
+          {
+            echo "<!-- trivy-scan-report -->"
+            echo "## 🔍 Trivy Image Scan"
+            echo ""
+            echo "**Image:** \`${IMAGE_REF}\`"
+            echo "**Pipeline result:** $STATUS"
+            echo ""
+            echo "### 📊 Vulnerability summary"
+            echo ""
+            echo "| Severity | Count |"
+            echo "|----------|---------:|"
+            echo "| 🔴 CRITICAL | $CRITICAL |"
+            echo "| 🟠 HIGH | $HIGH |"
+            echo "| 🟡 MEDIUM | $MEDIUM |"
+            echo "| 🔵 LOW | $LOW |"
+            echo "| ⚪ UNKNOWN | $UNKNOWN |"
+            echo "| **TOTAL** | **$TOTAL** |"
+            echo ""
+            if [ "$((CRITICAL + HIGH))" -gt 0 ]; then
+              echo "### 🚨 CRITICAL & HIGH details (up to 30 rows)"
+              echo ""
+              echo "| Severity | Package | Version | CVE | Fixed in |"
+              echo "|----------|---------|---------|-----|----------|"
+              jq -r '
+                [.Results[]?.Vulnerabilities[]? | select(.Severity=="CRITICAL" or .Severity=="HIGH")]
+                | sort_by(.Severity)
+                | .[:30][]
+                | "| \(.Severity) | \(.PkgName) | \(.InstalledVersion) | \(.VulnerabilityID) | \(.FixedVersion // "-") |"
+              ' "$report"
+              echo ""
+            fi
+            echo "_Updated by commit ${GITHUB_SHA:0:7} • $(date -u '+%Y-%m-%d %H:%M UTC')_"
+          } > summary.md
+
+          echo "----- Scan summary -----"
+          cat summary.md
+
+      # 4. Comment the summary + pipeline result on the PR (upsert a single comment)
+      - name: Comment scan result to PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('summary.md', 'utf8');
+            const marker = '<!-- trivy-scan-report -->';
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner, repo, issue_number,
+            });
+            const existing = comments.find(c => c.body && c.body.includes(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
+
+      # 5. Fail the pipeline if there are CRITICAL vulnerabilities
+      - name: Fail on CRITICAL vulnerabilities
+        if: steps.summary.outputs.critical != '0'
+        run: |
+          echo "::error::Pipeline failed — found ${{ steps.summary.outputs.critical }} CRITICAL vulnerabilities"
+          exit 1

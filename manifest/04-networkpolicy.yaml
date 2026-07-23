@@ -1,0 +1,69 @@
+# =============================================================================
+# 04-networkpolicy.yaml — Block the PIVOT link to MySQL (step 5 in the attack chain)
+#
+# Goal: even if the attacker has RCE inside the shop-app pod and holds the DB creds,
+#       traffic from the `ecommerce` namespace to MySQL in `database` is blocked
+#       at the network layer (east-west), so it cannot reach mysql-svc.
+#
+# Requirement: the CNI must support NetworkPolicy (Calico, Cilium, Weave... — NOT
+#              the default Flannel). Namespaces automatically carry the label
+#              kubernetes.io/metadata.name from Kubernetes >= 1.21.
+# =============================================================================
+
+---
+# (1) DEFAULT-DENY INGRESS: by default deny ALL traffic INTO every pod in `database`.
+#     podSelector: {} = selects all pods in the namespace.
+#     No ingress rule -> blocks everything. This is the least-privilege baseline.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: database
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  # (no ingress: declared -> deny all)
+
+---
+# (2) SELECTIVE ALLOW: only permit LEGITIMATE sources to reach MySQL on port 3306.
+#     Here we demonstrate allowing traffic only FROM WITHIN the `database` namespace
+#     itself (e.g. a backup/monitoring pod in the same namespace). We do NOT open it to `ecommerce`.
+#
+#     => The shop-app pod (ecommerce namespace) is blocked -> the pivot fails.
+#
+#     If the frontend app GENUINELY needs DB access, open exactly that pod using
+#     namespaceSelector + podSelector (see the commented example block below),
+#     do NOT open the whole namespace.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-mysql-from-database-only
+  namespace: database
+spec:
+  podSelector:
+    matchLabels:
+      app: mysql
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: database
+      ports:
+        - protocol: TCP
+          port: 3306
+
+    # --- (Optional) If you must let a specific backend in ecommerce access the DB,
+    #     open least-privilege access to exactly that pod instead of the whole namespace:
+    # - from:
+    #     - namespaceSelector:
+    #         matchLabels:
+    #           kubernetes.io/metadata.name: ecommerce
+    #       podSelector:
+    #         matchLabels:
+    #           app: shop-backend   # <- do NOT use shop-app (the pod that was RCE'd)
+    #   ports:
+    #     - protocol: TCP
+    #       port: 3306

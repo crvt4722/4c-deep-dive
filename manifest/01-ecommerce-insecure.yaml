@@ -1,0 +1,69 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ecommerce
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: shop-app-sa
+  namespace: ecommerce
+---
+# Overly broad RBAC: the SA of a frontend app can read pods/secrets across the ENTIRE CLUSTER
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: overprivileged-viewer
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "secrets", "services", "configmaps"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: shop-app-overprivileged-binding
+subjects:
+  - kind: ServiceAccount
+    name: shop-app-sa
+    namespace: ecommerce
+roleRef:
+  kind: ClusterRole
+  name: overprivileged-viewer
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shop-app
+  namespace: ecommerce
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: shop-app }
+  template:
+    metadata:
+      labels: { app: shop-app }
+    spec:
+      serviceAccountName: shop-app-sa
+      automountServiceAccountToken: false
+      # No securityContext -> runs as root, root filesystem is writable
+      containers:
+        - name: shop-app
+          image: crvt4722/demo-rce-app
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: shop-app-svc
+  namespace: ecommerce
+spec:
+  type: NodePort
+  selector: { app: shop-app }
+  ports:
+    - port: 8080
+      targetPort: 8080
+      nodePort: 30080
