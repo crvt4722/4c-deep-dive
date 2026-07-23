@@ -36,7 +36,7 @@ jobs:
 
       # 2. Scan the image with the Trivy action -> output JSON (do not fail here so we can still tally results)
       - name: Trivy scan (JSON report)
-        uses: aquasecurity/trivy-action@0.33.1
+        uses: aquasecurity/trivy-action
         with:
           image-ref: ${{ env.IMAGE_REF }}
           format: json
