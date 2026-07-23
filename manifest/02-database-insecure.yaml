@@ -1,0 +1,76 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: database
+---
+# Secret sits directly in the manifest, only base64 (not encrypted) -> a common mistake in the docx
+apiVersion: v1
+kind: Secret
+metadata:
+  name: db-credentials
+  namespace: database
+type: Opaque
+stringData:
+  MYSQL_ROOT_PASSWORD: "R00t!Pass2026"
+  MYSQL_USER: "shopapp"
+  MYSQL_PASSWORD: "Sh0pApp!DbPass"
+  MYSQL_DATABASE: "shop"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: db-initdb
+  namespace: database
+data:
+  init.sql: |
+    CREATE TABLE IF NOT EXISTS users (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      full_name VARCHAR(100),
+      email VARCHAR(100),
+      password_hash VARCHAR(100),
+      national_id VARCHAR(20),
+      note VARCHAR(200)
+    );
+    -- 100% simulated data, for demo purposes only
+    INSERT INTO users (full_name, email, password_hash, national_id, note) VALUES
+      ('Nguyen Van A', 'a.nguyen@example.test', '5f4dcc3b5aa765d61d8327deb882cf99', '001099001234', 'demo-fake-record-1'),
+      ('Tran Thi B', 'b.tran@example.test', '25d55ad283aa400af464c76d713c07ad', '001099005678', 'demo-fake-record-2');
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql
+  namespace: database
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: mysql }
+  template:
+    metadata:
+      labels: { app: mysql }
+    spec:
+      containers:
+        - name: mysql
+          image: mysql:8.0
+          envFrom:
+            - secretRef: { name: db-credentials }
+          ports:
+            - containerPort: 3306
+          volumeMounts:
+            - name: initdb
+              mountPath: /docker-entrypoint-initdb.d
+      volumes:
+        - name: initdb
+          configMap: { name: db-initdb }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql-svc
+  namespace: database
+spec:
+  selector: { app: mysql }
+  ports:
+    - port: 3306
+      targetPort: 3306
+# No NetworkPolicy restricts the ecommerce namespace from calling here -> a common mistake in the docx

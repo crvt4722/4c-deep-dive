@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ShopApp — Tech Store</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <!-- Header -->
+  <header class="nav">
+    <div class="nav__inner">
+      <a class="brand" href="#">
+        <span class="brand__logo">🛍️</span>
+        <span class="brand__name">Shop<span>App</span></span>
+      </a>
+      <nav class="nav__links">
+        <a href="#products">Products</a>
+        <a href="#seller">Seller Channel</a>
+        <a href="#" class="nav__badge">KCD Vietnam 2026</a>
+      </nav>
+      <button id="openSeller" class="btn btn--ghost">🧾 Scan Label</button>
+    </div>
+  </header>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="hero__content">
+      <span class="hero__pill">✨ Cloud Native Demo Store</span>
+      <h1>Shop for tech <span>smarter</span> every day</h1>
+      <p>Thousands of genuine products, fast delivery, great prices. Sellers just snap a photo of the label — the OCR system fills in the product details automatically.</p>
+      <div class="hero__actions">
+        <a href="#products" class="btn btn--primary">Explore products</a>
+        <button id="openSeller2" class="btn btn--outline">Try label scanning (OCR)</button>
+      </div>
+      <div class="hero__stats">
+        <div><strong>12k+</strong><span>Products</span></div>
+        <div><strong>4.8★</strong><span>Ratings</span></div>
+        <div><strong>99.9%</strong><span>Uptime</span></div>
+      </div>
+    </div>
+    <div class="hero__art">
+      <div class="floaty floaty--1">🎧</div>
+      <div class="floaty floaty--2">⌚</div>
+      <div class="floaty floaty--3">📷</div>
+      <div class="hero__card">
+        <div class="hero__card-top"></div>
+        <div class="hero__card-body">
+          <div class="skeleton skeleton--lg"></div>
+          <div class="skeleton"></div>
+          <div class="skeleton skeleton--sm"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Products -->
+  <main id="products" class="section">
+    <div class="section__head">
+      <div>
+        <h2>Featured products</h2>
+        <p class="muted">Hand-picked just for you</p>
+      </div>
+      <div id="filters" class="chips"></div>
+    </div>
+    <div id="grid" class="grid">
+      <!-- product cards injected by app.js -->
+      <div class="grid__loading">Loading products…</div>
+    </div>
+  </main>
+
+  <!-- Seller CTA -->
+  <section id="seller" class="cta">
+    <div class="cta__inner">
+      <div>
+        <h2>Are you a seller?</h2>
+        <p>List a product in just seconds. Snap a photo of the label and the OCR system reads it and fills in the details automatically.</p>
+      </div>
+      <button id="openSeller3" class="btn btn--primary btn--lg">🧾 Open label scanner</button>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="footer__inner">
+      <span>© 2026 ShopApp — Demo for KCD Vietnam 2026.</span>
+      <span class="muted">100% simulated data · for educational purposes only.</span>
+    </div>
+  </footer>
+
+  <!-- Seller / OCR modal -->
+  <div id="modal" class="modal" hidden>
+    <div class="modal__backdrop" data-close></div>
+    <div class="modal__panel" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="modal__head">
+        <h3 id="modalTitle">🧾 Scan product label (OCR)</h3>
+        <button class="modal__x" data-close aria-label="Close">✕</button>
+      </div>
+      <p class="muted">Enter the path to the label image on the server. The system uses OCR to extract the text and fill in the form.</p>
+
+      <form id="scanForm" class="form">
+        <label for="imagePath">Image path (imagePath)</label>
+        <div class="form__row">
+          <input id="imagePath" name="imagePath" type="text" placeholder="/uploads/labels/sample.png" value="/uploads/labels/sample.png" />
+          <button type="submit" class="btn btn--primary">Scan</button>
+        </div>
+        <div class="form__samples">
+          <span class="muted">Examples:</span>
+          <button type="button" class="chip chip--sm sample" data-v="/uploads/labels/sample.png">sample.png</button>
+          <button type="button" class="chip chip--sm sample" data-v="/uploads/labels/tshirt.jpg">tshirt.jpg</button>
+        </div>
+      </form>
+
+      <div id="result" class="result" hidden>
+        <div class="result__head">
+          <span class="result__label">OCR result</span>
+          <span id="resultStatus" class="tag"></span>
+        </div>
+        <pre id="resultText"></pre>
+      </div>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
