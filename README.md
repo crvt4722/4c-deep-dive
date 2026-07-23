@@ -1,8 +1,8 @@
-# 4C Cloud Native Security — KCD Vietnam 2026 Demo
+# 4C Cloud Native Security Demo
 
 > 🌐 **English** · [Tiếng Việt](./README.md)
 
-> Demo project for the **"4C Cloud Native Security"** talk at **Kubernetes Community Days (KCD) Vietnam 2026**.
+> Demo project for the **"4C Cloud Native Security"**
 >
 > It deploys an **intentionally vulnerable** e-commerce app on Kubernetes to walk through a **full attack chain** (RCE → steal the ServiceAccount token → call the kube-apiserver → read a Secret → pivot to MySQL and exfiltrate data) and the matching **defense layers** following the 4C model (Cloud, Cluster, Container, Code).
 
